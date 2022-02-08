@@ -1,0 +1,71 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="DuplicatedCode" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <Languages>
+        <language minSize="195" name="Python" />
+      </Languages>
+    </inspection_tool>
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="JupyterKernelInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyArgumentListInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyBroadExceptionInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyMethodMayBeStaticInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyMethodOverridingInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="E261" />
+          <option value="E722" />
+          <option value="E262" />
+          <option value="E501" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N801" />
+          <option value="N802" />
+          <option value="N806" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyShadowingNamesInspection" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyTupleAssignmentBalanceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyTypeCheckerInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyUnboundLocalVariableInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="modules.thing.RPi" />
+          <option value="Adafruit_ADS1x15" />
+          <option value="str.*" />
+          <option value="Adafruit_DHT" />
+          <option value="object.*" />
+          <option value="bool.__getitem__" />
+          <option value="num_sides" />
+          <option value="face_value" />
+          <option value="die" />
+          <option value="balance" />
+          <option value="games" />
+          <option value="die_types" />
+          <option value="array.count_cells_where" />
+          <option value="matplotlib.cm.gray" />
+          <option value="array.evolve" />
+          <option value="dict.condition_check" />
+          <option value="dict.condition_met" />
+          <option value="PySide2.QtWidgets.clicked.connect" />
+          <option value="PySide2.QtWidgets.accepted.connect" />
+          <option value="PySide2.QtWidgets.currentTextChanged.connect" />
+          <option value="property.__getitem__" />
+          <option value="PySide2.QtWidgets.actionTriggered.connect" />
+          <option value="voicerss_tts" />
+          <option value="httplib" />
+          <option value="smarthome.flask_login" />
+          <option value="modules.commands_manager.Command.__getitem__" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
