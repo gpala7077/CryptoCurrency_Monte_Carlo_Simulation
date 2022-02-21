@@ -66,6 +66,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         return ts[-1] - self.ts['Close'][-1]  # Return the ending price point less the last actual observed price
 
     def Simulation_Statistics(self):
+        self.results = np.array(self.results)
         print('Average Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
