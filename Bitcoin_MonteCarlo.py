@@ -5,21 +5,33 @@ from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import seaborn as sns
+
+
+def thousands(x, pos):
+    return '${:,}'.format(int(float(x)))
 
 
 def plot_histogram(series, ax):
     ax.hist(series, 50, facecolor='blue', alpha=0.5, density=True)
-    ax.set_title('Profit/Loss', fontweight="bold", size=30)
+    ax.set_title('Profit/Loss Distribution', size=25)
+    ax.set_xlabel('Profit/Loss', size=25)
+    ax.set_ylabel('Distribution Density', size=25)
+    ax.tick_params(labelrotation=45, labelsize=20)
+    ax.xaxis.set_major_formatter(thousands)
 
 
 def plot_series(simulated_series, last_actual_date, ax):
     for series in simulated_series:
         ax.plot(pd.date_range(last_actual_date, periods=len(series)).values, series)
 
-    ax.set_title('Simulated Trajectories', fontweight="bold", size=30)
+    ax.set_title('Simulated Trajectories', size=25)
+    ax.tick_params(labelrotation=45, labelsize=20)
+    ax.set_xlabel('Time', size=25)
+    ax.set_ylabel('Bitcoin Price', size=25)
+
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    ax.yaxis.set_major_formatter(thousands)
 
 
 class TimeSeries_MonteCarlo(MonteCarlo):
@@ -42,7 +54,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
     def SimulateOnce(self):
         ts = self.ts['Close']
         for i in range(self.trading_days):
-            log_returns = np.diff(np.log(ts))  # Calculate log returns of the series
+            log_returns = np.diff(np.log(ts)) # Calculate log returns of the series
             mean_return = log_returns.mean()  # Calculate the mean log return
             volatility = self.one_step_ahead_arma_garch_volatility(log_returns)  # Calculate one-step ahead volatility
             random_return = np.random.normal(  # Generate random return based on mean and volatility
@@ -60,10 +72,12 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
         print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var()))
 
-        fig, axs = plt.subplots(1, 2, figsize=(15, 10))
+        fig, axs = plt.subplots(1, 2, figsize=(13*1.10, 7*1.10))
         plot_histogram(self.results, axs[0])
         plot_series(self.simulated_arrays, self.ts.index[-1], axs[1])
-        plt.xticks(rotation=45)
+
+        fig.suptitle('Bitcoin Monte Carlo\nSimulating {} days'.format(self.trading_days), fontsize=30, fontweight='bold')
+        fig.tight_layout()
         plt.show()
 
 
@@ -72,6 +86,7 @@ data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
 data.index = pd.to_datetime(data.index)
 
 TS = TimeSeries_MonteCarlo(ts=data, trading_days=365)
-TS.RunSimulation(5)
+TS.RunSimulation(100)
 TS.Simulation_Statistics()
+
 
