@@ -63,10 +63,9 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             ts = np.append(ts, ts[-1] * random_return)  # Generate an estimated new price point given the random return
 
         self.simulated_arrays.append(ts[len(self.ts)-1:])  # Store the simulated year array
-        return ts[-1]  # Return the ending price point
+        return ts[-1] - self.ts['Close'][-1]  # Return the ending price point less the last actual observed price
 
     def Simulation_Statistics(self):
-        self.results = np.array(self.results) - self.ts['Close'][-1]
         print('Average Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
@@ -86,7 +85,7 @@ data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
 data.index = pd.to_datetime(data.index)
 
 TS = TimeSeries_MonteCarlo(ts=data, trading_days=365)
-TS.RunSimulation(100)
+TS.RunSimulation(50)
 TS.Simulation_Statistics()
 
 
