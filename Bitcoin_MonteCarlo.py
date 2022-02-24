@@ -117,7 +117,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
 trading_days = 365
 rebuild_rate = 10
 model = 'GARCH'
-simulations = 1000
+simulations = 500
 save_sim = True
 
 data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
@@ -132,4 +132,6 @@ if save_sim:
     with open('{}_{}_sims_{}_days_rebuild_{}.dill'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
         dill.dump(TS, f)
 
-
+# TO OPEN DILL FILE
+# with open('GARCH_10_sims_3_days_rebuild_10.dill','rb') as f:
+#     TS = dill.load(f)
