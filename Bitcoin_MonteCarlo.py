@@ -97,10 +97,13 @@ class TimeSeries_MonteCarlo(MonteCarlo):
     def Simulation_Statistics(self):
         self.results = np.array(self.results)
 
+        print(self.elapsed_time)
+        print('-'*len(self.elapsed_time))
         print('\nAverage Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
         print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var()))
+        print('-'*len(self.elapsed_time))
 
         fig, axs = plt.subplots(1, 2, figsize=(13 * 1.10, 7 * 1.10))
         plot_histogram(self.results, axs[0])
@@ -112,17 +115,20 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         plt.show()
 
 
-# download dataframe
-data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
-data.index = pd.to_datetime(data.index)
-trading_days = 365
+trading_days = 5
 rebuild_rate = 10
 model = 'GARCH'
-simulations = 100
+simulations = 1
+save_sim = True
 
-TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
-TS.RunSimulation(simulations)
-TS.Simulation_Statistics()
+if __name__ == '__main__':
+    data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
+    data.index = pd.to_datetime(data.index)
 
-with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as file:
-    pickle.dump(TS, file, protocol=pickle.HIGHEST_PROTOCOL)
+    TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
+    TS.RunSimulation(simulations)
+    TS.Simulation_Statistics()
+
+    if save_sim:
+        with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
+            pickle.dump(TS, f, protocol=pickle.HIGHEST_PROTOCOL)
