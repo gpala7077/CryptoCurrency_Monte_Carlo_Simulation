@@ -121,14 +121,14 @@ model = 'GARCH'
 simulations = 1
 save_sim = True
 
-if __name__ == '__main__':
-    data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
-    data.index = pd.to_datetime(data.index)
+data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
+data.index = pd.to_datetime(data.index)
 
-    TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
-    TS.RunSimulation(simulations)
-    TS.Simulation_Statistics()
+TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
+TS.RunSimulation(simulations)
+TS.Simulation_Statistics()
 
-    if save_sim:
-        with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
-            pickle.dump(TS, f, protocol=pickle.HIGHEST_PROTOCOL)
+if save_sim:
+    with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
+        pickle.dump(TS, f, protocol=pickle.HIGHEST_PROTOCOL)
+
