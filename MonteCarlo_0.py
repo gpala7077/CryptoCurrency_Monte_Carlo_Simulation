@@ -3,8 +3,6 @@ import time
 import datetime
 
 
-
-
 # A general MonteCarlo engine that runs a simulation many times and computes the average
 # and the error in the average (confidence interval for a certain level). 
 
@@ -38,23 +36,21 @@ class MonteCarlo:
         for k in range(sim_count):
             x = self.SimulateOnce()  # Run the simulation
             self.results.append(x)  # Add the result to the array
-            print('Completed Simulation # {}'.format(k+1))
+            print('Completed Simulation # {}'.format(k + 1))
 
         self.CalculateTime(start, time.time())
         # Retrun the mean result (we will get more information on this shortly)
         return np.mean(self.results)
 
-    def CalculateTime(self,start, end):
-        time_elapsed = str(datetime.timedelta(seconds=end-start))
+    def CalculateTime(self, start, end):
+        time_elapsed = str(datetime.timedelta(seconds=end - start))
         if 'days' in time_elapsed:
             days, hms = time_elapsed.split(',')
             hms = [float(i) for i in hms.split(':')]
-            text = '\nSimulation Completed in {}, {:.0f} hour(s), {:.0f} minute(s), and {:.2f} second(s)'.format(
-                *[days] + hms)
+            text = '\n{} Simulation Completed in {}, {:.0f} hour(s), {:.0f} minute(s), and {:.2f} second(s)'.format(
+                self.sim_count, *[days] + hms)
         else:
             hms = [float(i) for i in time_elapsed.split(':')]
-            text = '\nSimulation Completed in {:.0f} hour(s), {:.0f} minute(s), and {:.2f} second(s)'.format(*hms)
-
+            text = '\n{} Simulation Completed in {:.0f} hour(s), {:.0f} minute(s), and {:.2f} second(s)'.format(
+                self.sim_count, *hms)
         self.elapsed_time = text
-
-

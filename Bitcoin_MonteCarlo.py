@@ -5,7 +5,7 @@ from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import pickle
+import dill
 
 
 def thousands(x, pos):
@@ -127,6 +127,9 @@ TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebu
 TS.RunSimulation(simulations)
 TS.Simulation_Statistics()
 
+
 if save_sim:
-    with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
-        pickle.dump(TS, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open('{}_{}_sims_{}_days_rebuild_{}.dill'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
+        dill.dump(TS, f)
+
+
