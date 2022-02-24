@@ -5,6 +5,7 @@ from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import pickle
 
 
 def thousands(x, pos):
@@ -114,10 +115,14 @@ class TimeSeries_MonteCarlo(MonteCarlo):
 # download dataframe
 data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
 data.index = pd.to_datetime(data.index)
+trading_days = 365
+rebuild_rate = 10
+model = 'GARCH'
+simulations = 100
 
-TS = TimeSeries_MonteCarlo(ts=data, model='GARCH', trading_days=365, rebuild_rate=10)
-TS.RunSimulation(100)
+TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
+TS.RunSimulation(simulations)
 TS.Simulation_Statistics()
 
-
-
+with open('{}_{}_sims_{}_days_rebuild_{}.pickle'.format(model, simulations, trading_days, rebuild_rate), 'wb') as file:
+    pickle.dump(TS, file, protocol=pickle.HIGHEST_PROTOCOL)
