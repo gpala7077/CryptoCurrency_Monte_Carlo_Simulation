@@ -56,7 +56,7 @@ class MonteCarlo:
             print('Completed Simulation # {}'.format(k + 1))
 
         self.CalculateTime(start, time.time())
-        # Retrun the mean result (we will get more information on this shortly)
+        # Return the mean result (we will get more information on this shortly)
         return np.mean(self.results)
 
     def CalculateTime(self, start, end):

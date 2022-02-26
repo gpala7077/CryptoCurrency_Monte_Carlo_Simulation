@@ -5,7 +5,6 @@ from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import dill
 
 
 def thousands(x, pos):
@@ -40,16 +39,16 @@ def arma_garch_volatility(series, horizon):
     arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
     model = arch_model(arima_residuals, vol='GARCH', p=1, q=1, rescale=True)  # Build Garch(1,1) on ARIMA residuals
     fitted_model = model.fit(disp="off")  # Fit the model
-    forecast = fitted_model.forecast(horizon=horizon, reindex=False)  # Forecast 1-step ahead
+    forecast = fitted_model.forecast(horizon=horizon, reindex=False)  # Forecast n-step ahead
 
     return np.sqrt(forecast.residual_variance.values[0])  # Return volatility forecast
 
 
-def SimulateGarch(ts, trading_days, rebuild_rate):
+def SimulateGarch(ts, horizon, trading_days, rebuild_rate):
     actual = ts
     n_steps = 0
     volatility = []
-    for i in range(trading_days):
+    for i in range(horizon):
         log_returns = np.diff(np.log(ts))  # Calculate log returns of the series
         mean_return = log_returns.mean()  # Calculate the mean log return
 
@@ -57,15 +56,15 @@ def SimulateGarch(ts, trading_days, rebuild_rate):
             volatility = arma_garch_volatility(log_returns, rebuild_rate)  # Calculate volatility
             n_steps = 0
 
-        random_return = np.random.normal(  # Generate random return based on mean and volatility
-            (1 + mean_return) ** (1 / trading_days),
-            volatility[n_steps] / np.sqrt(trading_days), 1)
+        random_return = np.random.normal(  # Generate random return
+            (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
 
         ts = np.append(ts, ts[-1] * random_return)  # Generate an estimated new price point given the random return
 
         n_steps += 1
 
     simulated_series = ts[len(actual) - 1:]  # Store the simulated year array
+
     return simulated_series, ts[-1] - actual[-1]  # Return simulated series and the profit/loss
 
 
@@ -75,9 +74,10 @@ def SimulateOptions():
 
 
 class TimeSeries_MonteCarlo(MonteCarlo):
-    def __init__(self, ts, model='GARCH', trading_days=365, rebuild_rate=1):
+    def __init__(self, ts, model='GARCH', horizon=365, trading_days=365, rebuild_rate=1):
         self.ts = ts
         self.trading_days = trading_days
+        self.horizon = horizon
         self.rebuild_rate = rebuild_rate
         self.model = model
         self.simulated_series = []
@@ -85,7 +85,8 @@ class TimeSeries_MonteCarlo(MonteCarlo):
 
     def SimulateOnce(self):
         if self.model == 'GARCH':
-            simulated_series, result = SimulateGarch(self.ts['Close'], self.trading_days, self.rebuild_rate)
+            simulated_series, result = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days,
+                                                     self.rebuild_rate)
             self.simulated_series.append(simulated_series)
 
         elif self.model == 'Options':
@@ -97,12 +98,12 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         self.results = np.array(self.results)
 
         print(self.elapsed_time)
-        print('-'*len(self.elapsed_time))
+        print('-' * len(self.elapsed_time))
         print('Average Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
         print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var()))
-        print('-'*len(self.elapsed_time))
+        print('-' * len(self.elapsed_time))
 
         fig, axs = plt.subplots(1, 2, figsize=(13 * 1.10, 7 * 1.10))
         plot_histogram(self.results, axs[0])
@@ -112,26 +113,3 @@ class TimeSeries_MonteCarlo(MonteCarlo):
                      fontsize=30, fontweight='bold')
         fig.tight_layout()
         plt.show()
-
-
-trading_days = 365
-rebuild_rate = 10
-model = 'GARCH'
-simulations = 500
-save_sim = True
-
-data = pd.read_csv('Bitcoin_2014-2022.csv', index_col=0)
-data.index = pd.to_datetime(data.index)
-
-TS = TimeSeries_MonteCarlo(ts=data, model=model, trading_days=trading_days, rebuild_rate=rebuild_rate)
-TS.RunSimulation(simulations)
-TS.Simulation_Statistics()
-
-
-if save_sim:
-    with open('{}_{}_sims_{}_days_rebuild_{}.dill'.format(model, simulations, trading_days, rebuild_rate), 'wb') as f:
-        dill.dump(TS, f)
-
-# TO OPEN DILL FILE
-# with open('GARCH_10_sims_3_days_rebuild_10.dill','rb') as f:
-#     TS = dill.load(f)
