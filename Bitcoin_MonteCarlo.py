@@ -68,9 +68,56 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate):
     return simulated_series, ts[-1] - actual[-1]  # Return simulated series and the profit/loss
 
 
-def SimulateOptions():
-    """Add Single Simulation for Options Component"""
-    return 0
+def geometricAvg(Lst):
+    """Returns the geometric mean of a list."""
+    product = 1
+    size = len(Lst)
+    for num in Lst:
+        num *= product
+    avg = product ** (1/size)
+    return avg
+    
+def arithmeticAvg(Lst):
+    """Returns the arithmetic mean of a list."""
+    avg = sum(Lst)/len(Lst)
+    return avg    
+
+def SimulateOptions(sigma, prices, num_interval=4, risk_fee_rate=.03, avg_method='geometric'):
+    """Returns option payoff discounted by risk-free rate.
+    
+    Sigma is a list of estimated volitility made by GARCH, prices is a list of prices produced with the GARCH volitilities, 
+    num_interval is an interger representing the number of intervals to break the period into for finding to ending price of
+    each interval to average, the risk free rate representents the risk free rate in decimal form, and the avg_method is the
+    method used to average the prices at the end of each interval, 'geometric' or 'arithmetic'.
+    """
+    days = len(returns)  # Number of days similated
+    
+    startingPrice = prices[0]  # Starting price of series
+    logS = math.log(startingPrice)  
+    for vol in sigma:  # Loop through all predicted sigmas from garch
+        step = 1/days  # Size of step
+
+        # Update price based on sigmas predicted by GARCH
+        periodRate = (risk_fee_rate - .5 * vol**2) * step
+        periodSigma = vol * math.sqrt(step)
+        logS += rand.normal(periodRate, periodSigma)
+    
+    # Obtain prices from original similation to be averaged 
+    daysInterval = int(days/num_interval)  # Number of days in each interval to average end price
+    priceLst = []  # Hold prices to be averaged
+    for i in range(1, num_interval):
+        Idx = i * daysInterval  # Index for  bitcoin price to be included in average
+        price = prices[Idx]
+        priceLst.append(price)
+        
+    # Get average price based on method choosen
+    if avg_method == 'arithmetic':
+        avg = arithmeticAvg(priceLst)
+    else:
+        avg = geometricAvg(priceLst)
+        
+    # Return the payoff discounted by the risk-free rate
+    return max(math.exp(logS) - avg, 0) * math.exp(-risk_fee_rate * days)
 
 
 class TimeSeries_MonteCarlo(MonteCarlo):
