@@ -5,6 +5,7 @@ from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import scipy.stats as stats
 
 
 def thousands(x, pos):
@@ -65,24 +66,31 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate):
 
     simulated_series = ts[len(actual) - 1:]  # Store the simulated year array
 
-    return simulated_series, ts[-1] - actual[-1]  # Return simulated series and the profit/loss
+    return simulated_series  # Return simulated series
 
 
-def geometricAvg(Lst):
-    """Returns the geometric mean of a list."""
-    product = 1
-    size = len(Lst)
-    for num in Lst:
-        num *= product
-    avg = product ** (1/size)
-    return avg
-    
-def arithmeticAvg(Lst):
-    """Returns the arithmetic mean of a list."""
-    avg = sum(Lst)/len(Lst)
-    return avg    
+# These don't need to be used. np.mean() and stats.gmean can take their place
+#######################################################
+# def geometricAvg(Lst):
+#     """Returns the geometric mean of a list."""
+#     product = 1
+#     size = len(Lst)
+#     for num in Lst:
+#         num *= product
+#     avg = product ** (1 / size)
+#     return avg
+#
+#
+# def arithmeticAvg(Lst):
+#     """Returns the arithmetic mean of a list."""
+#     avg = sum(Lst) / len(Lst)
+#     return avg
 
-def SimulateOptions(sigma, prices, num_interval=4, risk_fee_rate=.03, avg_method='geometric'):
+
+########################################################
+
+
+def SimulateOptions(simulated_series, options_type, strike_price, risk_free_rate, num_interval=None):
     """Returns option payoff discounted by risk-free rate.
     
     Sigma is a list of estimated volitility made by GARCH, prices is a list of prices produced with the GARCH volitilities, 
@@ -90,54 +98,76 @@ def SimulateOptions(sigma, prices, num_interval=4, risk_fee_rate=.03, avg_method
     each interval to average, the risk free rate representents the risk free rate in decimal form, and the avg_method is the
     method used to average the prices at the end of each interval, 'geometric' or 'arithmetic'.
     """
-    days = len(returns)  # Number of days similated
-    
-    startingPrice = prices[0]  # Starting price of series
-    logS = math.log(startingPrice)  
-    for vol in sigma:  # Loop through all predicted sigmas from garch
-        step = 1/days  # Size of step
 
-        # Update price based on sigmas predicted by GARCH
-        periodRate = (risk_fee_rate - .5 * vol**2) * step
-        periodSigma = vol * math.sqrt(step)
-        logS += rand.normal(periodRate, periodSigma)
-    
-    # Obtain prices from original similation to be averaged 
-    daysInterval = int(days/num_interval)  # Number of days in each interval to average end price
-    priceLst = []  # Hold prices to be averaged
-    for i in range(1, num_interval):
-        Idx = i * daysInterval  # Index for  bitcoin price to be included in average
-        price = prices[Idx]
-        priceLst.append(price)
-        
-    # Get average price based on method choosen
-    if avg_method == 'arithmetic':
-        avg = arithmeticAvg(priceLst)
-    else:
-        avg = geometricAvg(priceLst)
-        
-    # Return the payoff discounted by the risk-free rate
-    return max(math.exp(logS) - avg, 0) * math.exp(-risk_fee_rate * days)
+    if options_type == 'Asian':
+        if num_interval is None:
+            print('Asian options requires an interval period.')
+            raise TypeError
+
+        days = len(simulated_series)  # Number of days simulated
+        days_interval = int(days / num_interval)  # Number of days in each interval to average end price
+        price_lst = simulated_series[::days_interval]  # List of price intervals
+
+    # We don't need to regenerate prices, since this method does not take into account historical prices and volatility
+    #
+    # startingPrice = prices[0]  # Starting price of series
+    # logS = math.log(startingPrice)
+    # for vol in sigma:  # Loop through all predicted sigmas from garch
+    #     step = 1/days  # Size of step
+    #
+    #     # Update price based on sigmas predicted by GARCH
+    #     periodRate = (risk_fee_rate - .5 * vol**2) * step
+    #     periodSigma = vol * math.sqrt(step)
+    #     logS += rand.normal(periodRate, periodSigma)
+
+    # This can be simplified into one line. i.e. simulated_series[::days_interval]
+    #
+    # # Obtain prices from original simulation to be averaged
+    # price_lst = []  # Hold prices to be averaged
+    # for i in range(1, num_interval):
+    #     idx = i * days_interval  # Index for  bitcoin price to be included in average
+    #     price = simulated_series[idx]
+    #     price_lst.append(price)
+
+    # Get average price based on method chosen
+    if strike_price == 'arithmetic':
+        strike_price = np.mean(price_lst)
+
+    elif strike_price == 'geometric':
+        strike_price = stats.gmean(price_lst)
+
+    # Return the payoff discounted by the risk-free rate, THIS NEEDS TO BE LOOKED AT. AM I DISCOUNTING RIGHT?
+    return max(simulated_series[-1] - strike_price, 0) * np.exp(-risk_free_rate * (1/days))
 
 
 class TimeSeries_MonteCarlo(MonteCarlo):
-    def __init__(self, ts, model='GARCH', horizon=365, trading_days=365, rebuild_rate=1):
+    def __init__(self, ts, model='Returns', horizon=365, trading_days=365, rebuild_rate=1, options_info=None):
+
+        if model == 'Options' and options_info is None:
+            print('Modeling options requires a dictionary')
+            print("dict(type='Asian', risk_free_rate=.03, strike='geometric', interval=4)")
+            print("dict(type='European', risk_free_rate=.03, strike=54.96, interval=None)")
+            raise TypeError
+
         self.ts = ts
         self.trading_days = trading_days
         self.horizon = horizon
         self.rebuild_rate = rebuild_rate
         self.model = model
+        self.options_info = options_info
         self.simulated_series = []
         self.results = []
 
     def SimulateOnce(self):
-        if self.model == 'GARCH':
-            simulated_series, result = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days,
-                                                     self.rebuild_rate)
-            self.simulated_series.append(simulated_series)
+        simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate)
+        self.simulated_series.append(simulated_series)
+
+        if self.model == 'Returns':
+            result = self.ts['Close'][-1] - simulated_series[-1]
 
         elif self.model == 'Options':
-            result = SimulateOptions(self.sigmas,  self.simulated_series)
+            result = SimulateOptions(simulated_series, self.options_info['type'], self.options_info['strike'],
+                                     self.options_info['risk_free_rate'], self.options_info['interval'])
 
         return result
 
