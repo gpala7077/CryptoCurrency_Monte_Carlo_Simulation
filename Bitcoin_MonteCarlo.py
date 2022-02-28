@@ -288,7 +288,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         plot_histogram(self.results, axs[0])
         plot_series(self.simulated_series, self.ts.index[-1], axs[1])
 
-        if 'name' not in self.ticker['info']:
+        if 'name' not in self.ticker.info:
             name = self.ticker.ticker
         else:
             name = self.ticker.info['name']
