@@ -6,13 +6,38 @@ from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import scipy.stats as stats
+import yfinance as yf
 
 
 def thousands(x, pos):
+    """
+        Formats a string in comma format. Used in ax.xaxis.set_major_formatter or ax.yaxis.set_major_formatter
+    :param x:
+        String containing a float
+
+    :param pos:
+        Position in matplotlib
+
+    :return:
+        None
+    """
     return '${:,}'.format(int(float(x)))
 
 
 def plot_histogram(series, ax):
+    """
+        Plots a histogram
+    Parameters
+    ----------
+    :param series:
+        A numpy array
+
+    :param ax:
+        Matplotlib ax object
+
+    :return:
+        None
+    """
     ax.hist(series, 50, facecolor='blue', alpha=0.5, density=True)
     ax.set_title('Profit/Loss Distribution', size=25)
     ax.set_xlabel('Profit/Loss', size=25)
@@ -22,6 +47,22 @@ def plot_histogram(series, ax):
 
 
 def plot_series(simulated_series, last_actual_date, ax):
+    """
+        Plots all the simulated time series
+    Parameters
+    ----------
+    :param simulated_series:
+        A list containing numpy arrays
+
+    :param last_actual_date:
+        Last observed date
+
+    :param ax:
+        Matplotlib ax object
+
+    :return:
+        None
+    """
     for series in simulated_series:
         ax.plot(pd.date_range(last_actual_date, periods=len(series)).values, series)
 
@@ -36,6 +77,19 @@ def plot_series(simulated_series, last_actual_date, ax):
 
 
 def arma_garch_volatility(series, horizon):
+    """
+        Builds an ARMA-GARCH model and returns the forecasted volatility
+    Parameters
+    ----------
+    :param series:
+        A numpy array containing the log return of a series
+
+    :param horizon:
+        An int describing the number of days to be forecasted
+
+    :return:
+        Returns the forecast volatility
+    """
     arima_model_fitted = arima.auto_arima(series, information_criterion='bic')  # Fit an ARIMA model
     arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
     model = arch_model(arima_residuals, vol='GARCH', p=1, q=1, rescale=True)  # Build Garch(1,1) on ARIMA residuals
@@ -45,22 +99,52 @@ def arma_garch_volatility(series, horizon):
     return np.sqrt(forecast.residual_variance.values[0])  # Return volatility forecast
 
 
-def SimulateGarch(ts, horizon, trading_days, rebuild_rate):
+def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate):
+    """
+        Generates a simulated series using an ARMA-GARCH process.
+    Parameters
+    ----------
+    :param ts:
+        A numpy array containing the observed price values of a stock
+
+    :param horizon:
+        An int describing the number of days to be forecasted
+
+    :param trading_days:
+        An int describing the total number of available trading days in a year
+
+    :param rebuild_rate:
+        An int describing the rate at which the ARMA-GARCH model is rebuilt
+
+    :param risk_free_rate:
+        A float describing the current risk-free rate
+
+    :return:
+        Returns a numpy array containing the simulated series
+    """
     actual = ts
     n_steps = 0
     volatility = []
     for i in range(horizon):
         log_returns = np.diff(np.log(ts))  # Calculate log returns of the series
         mean_return = log_returns.mean()  # Calculate the mean log return
+        log_price = np.log(ts)
 
         if n_steps == len(volatility):
             volatility = arma_garch_volatility(log_returns, rebuild_rate)  # Calculate volatility
             n_steps = 0
 
-        random_return = np.random.normal(  # Generate random return
-            (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
+        # Method 1 to calculate random return
+        # random_return = np.random.normal(  # Generate random return
+        #     (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
+        #
+        # ts = np.append(ts, ts[-1] * random_return)  # Generate an estimated new price with the random return
 
-        ts = np.append(ts, ts[-1] * random_return)  # Generate an estimated new price point given the random return
+        # Method 2 to calculate random return
+        period_rate = (risk_free_rate - .5 * volatility[n_steps] ** 2) * 1 / trading_days
+        period_sigma = volatility[n_steps] * np.sqrt(1 / trading_days)
+        random_return = np.random.normal(period_rate, period_sigma)
+        ts = np.append(ts, np.exp(log_price[-1] + random_return))  # Generate an estimated price with random return
 
         n_steps += 1
 
@@ -69,34 +153,25 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate):
     return simulated_series  # Return simulated series
 
 
-# These don't need to be used. np.mean() and stats.gmean can take their place
-#######################################################
-# def geometricAvg(Lst):
-#     """Returns the geometric mean of a list."""
-#     product = 1
-#     size = len(Lst)
-#     for num in Lst:
-#         num *= product
-#     avg = product ** (1 / size)
-#     return avg
-#
-#
-# def arithmeticAvg(Lst):
-#     """Returns the arithmetic mean of a list."""
-#     avg = sum(Lst) / len(Lst)
-#     return avg
+def SimulateOptions(simulated_series, options_type, strike_price, num_interval=None):
+    """
+        Returns the payoff of an option
+    Parameters
+    ----------
+    :param simulated_series:
+        A numpy array that contains the stock price series
 
+    :param options_type:
+        A string input indicating the options type, i.e. Asian, European
 
-########################################################
+    :param strike_price:
+        A string or float input indicating the strike price, i.e. geometric, arithmetic, 54.65
 
+    :param num_interval:
+        An int that indicates the strike price interval. (Only used for Asian options)
 
-def SimulateOptions(simulated_series, options_type, strike_price, risk_free_rate, num_interval=None):
-    """Returns option payoff discounted by risk-free rate.
-    
-    Sigma is a list of estimated volitility made by GARCH, prices is a list of prices produced with the GARCH volitilities, 
-    num_interval is an interger representing the number of intervals to break the period into for finding to ending price of
-    each interval to average, the risk free rate representents the risk free rate in decimal form, and the avg_method is the
-    method used to average the prices at the end of each interval, 'geometric' or 'arithmetic'.
+    :return:
+        Options payoff
     """
 
     if options_type == 'Asian':
@@ -108,27 +183,6 @@ def SimulateOptions(simulated_series, options_type, strike_price, risk_free_rate
         days_interval = int(days / num_interval)  # Number of days in each interval to average end price
         price_lst = simulated_series[::days_interval]  # List of price intervals
 
-    # We don't need to regenerate prices, since this method does not take into account historical prices and volatility
-    #
-    # startingPrice = prices[0]  # Starting price of series
-    # logS = math.log(startingPrice)
-    # for vol in sigma:  # Loop through all predicted sigmas from garch
-    #     step = 1/days  # Size of step
-    #
-    #     # Update price based on sigmas predicted by GARCH
-    #     periodRate = (risk_fee_rate - .5 * vol**2) * step
-    #     periodSigma = vol * math.sqrt(step)
-    #     logS += rand.normal(periodRate, periodSigma)
-
-    # This can be simplified into one line. i.e. simulated_series[::days_interval]
-    #
-    # # Obtain prices from original simulation to be averaged
-    # price_lst = []  # Hold prices to be averaged
-    # for i in range(1, num_interval):
-    #     idx = i * days_interval  # Index for  bitcoin price to be included in average
-    #     price = simulated_series[idx]
-    #     price_lst.append(price)
-
     # Get average price based on method chosen
     if strike_price == 'arithmetic':
         strike_price = np.mean(price_lst)
@@ -136,30 +190,75 @@ def SimulateOptions(simulated_series, options_type, strike_price, risk_free_rate
     elif strike_price == 'geometric':
         strike_price = stats.gmean(price_lst)
 
-    # Return the payoff discounted by the risk-free rate, THIS NEEDS TO BE LOOKED AT. AM I DISCOUNTING RIGHT?
-    return max(simulated_series[-1] - strike_price, 0) * np.exp(-risk_free_rate * (1/days))
+    # Return the payoff
+    return max(simulated_series[-1] - strike_price, 0)
 
 
 class TimeSeries_MonteCarlo(MonteCarlo):
-    def __init__(self, ts, model='Returns', horizon=365, trading_days=365, rebuild_rate=1, options_info=None):
+    """
+        A Monte Carlo class that simulates the price movement of a stock using an ARMA-GARCH process.
 
-        if model == 'Options' and options_info is None:
-            print('Modeling options requires a dictionary')
-            print("dict(type='Asian', risk_free_rate=.03, strike='geometric', interval=4)")
-            print("dict(type='European', risk_free_rate=.03, strike=54.96, interval=None)")
-            raise TypeError
+    Attributes
+    ----------
+    ticker: str
+        The ticker for the requested stock
 
-        self.ts = ts
+    period: str or dict
+        Period of time for the stock. i.e. max, 1mo, 1d, ytd, or dict(start=2014-01-01,end=2017-04-03)
+
+    model: str
+        Type of return to be evaluated. i.e. Returns or Options
+
+    horizon: int
+        Number of days to forecast
+
+    trading_days: int
+        Number of available trading days. stocks = 253, cryptocurrencies = 365
+
+    rebuild_rate: int
+        Rate to rebuild ARMA-GARCH model
+
+    risk_free_rate: float
+        The current risk-free rate
+
+    options_info: dict
+        Option information. i.e.
+        dict(type='Asian', strike='geometric', interval=4) or dict(type='European', strike=54.96, interval=None)
+    """
+
+    def __init__(self, ticker, period='max', model='Returns', horizon=365, trading_days=365, rebuild_rate=1,
+                 risk_free_rate=.03, options_info=None):
+
         self.trading_days = trading_days
         self.horizon = horizon
         self.rebuild_rate = rebuild_rate
         self.model = model
         self.options_info = options_info
+        self.risk_free_rate = risk_free_rate
         self.simulated_series = []
         self.results = []
 
+        if model == 'Options' and options_info is None:
+            print('Modeling options requires a dictionary')
+            print("dict(type='Asian', strike='geometric', interval=4)")
+            print("dict(type='European', strike=54.96, interval=None)")
+            raise TypeError
+
+        self.ticker = yf.Ticker(ticker)
+
+        if isinstance(period, dict):
+            if 'start' not in period or 'end' not in period:
+                print('Period should have start and end dates in %Y-%m-%d format')
+                raise TypeError
+            self.ts = self.ticker.history(start=period['start'], end=period['end'])
+        else:
+            self.ts = self.ticker.history(period=period)
+
     def SimulateOnce(self):
-        simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate)
+        """ Simulate one price movement for the given horizon period"""
+
+        simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate,
+                                         self.risk_free_rate)
         self.simulated_series.append(simulated_series)
 
         if self.model == 'Returns':
@@ -167,11 +266,14 @@ class TimeSeries_MonteCarlo(MonteCarlo):
 
         elif self.model == 'Options':
             result = SimulateOptions(simulated_series, self.options_info['type'], self.options_info['strike'],
-                                     self.options_info['risk_free_rate'], self.options_info['interval'])
+                                     self.options_info['interval'])
 
-        return result
+        # Return result discounted by the risk-free rate
+        return result * np.exp(-self.risk_free_rate * (1 / self.trading_days))
 
     def Simulation_Statistics(self):
+        """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
+
         self.results = np.array(self.results)
 
         print(self.elapsed_time)
@@ -186,7 +288,8 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         plot_histogram(self.results, axs[0])
         plot_series(self.simulated_series, self.ts.index[-1], axs[1])
 
-        fig.suptitle('Bitcoin Monte Carlo\nRan {} Simulation(s) of {} day(s)'.format(self.sim_count, self.trading_days),
-                     fontsize=30, fontweight='bold')
+        fig.suptitle('{} Monte Carlo\nRan {} Simulation(s) of {} day(s)'.format(
+            self.ticker.info['name'], self.sim_count, self.trading_days), fontsize=30, fontweight='bold')
+
         fig.tight_layout()
         plt.show()
