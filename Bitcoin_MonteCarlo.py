@@ -288,8 +288,13 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         plot_histogram(self.results, axs[0])
         plot_series(self.simulated_series, self.ts.index[-1], axs[1])
 
+        if 'name' not in self.ticker['info']:
+            name = self.ticker.ticker
+        else:
+            name = self.ticker.info['name']
+
         fig.suptitle('{} Monte Carlo\nRan {} Simulation(s) of {} day(s)'.format(
-            self.ticker.info['name'], self.sim_count, self.trading_days), fontsize=30, fontweight='bold')
+            name, self.sim_count, self.trading_days), fontsize=30, fontweight='bold')
 
         fig.tight_layout()
         plt.show()
