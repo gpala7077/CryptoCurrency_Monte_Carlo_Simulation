@@ -137,7 +137,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             self.simulated_series.append(simulated_series)
 
         elif self.model == 'Options':
-            result = SimulateOptions()
+            result = SimulateOptions(self.sigmas,  self.simulated_series)
 
         return result
 
