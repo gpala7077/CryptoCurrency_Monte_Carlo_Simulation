@@ -275,9 +275,15 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
 
         self.results = np.array(self.results)
+        vtime = self.ts.index[-1] - self.ts.index[0]
+        years = int(vtime.days / 365)
+        months = int((vtime.days % 365) / 30)
+        days = int((vtime.days % 365) % 30)
 
         print(self.elapsed_time)
         print('-' * len(self.elapsed_time))
+        print('Simulated prices from {} year(s), {} month(s), and {} day(s) of historical data'.format(
+            years, months, days))
         print('Average Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
