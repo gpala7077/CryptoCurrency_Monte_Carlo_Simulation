@@ -102,7 +102,7 @@ def arma_garch_volatility(series, horizon, arima, arch_garch):
     arima_model_fitted = pmdarima.auto_arima(series, **arima)  # Fit an ARIMA model
     arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
     model = arch_model(arima_residuals, **arch_garch)  # Build Garch on ARMA residuals
-    fitted_model = model.fit(disp="off")  # Fit the model
+    fitted_model = model.fit(disp="off", show_warning=False)  # Fit the model
     forecast = fitted_model.forecast(horizon=horizon, reindex=False)  # Forecast n-step ahead
 
     return np.sqrt(forecast.residual_variance.values[0])  # Return volatility forecast
