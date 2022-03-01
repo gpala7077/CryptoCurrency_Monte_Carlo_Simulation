@@ -3,23 +3,6 @@ import time
 import datetime
 
 
-# A function that helps us compute the statistics for the MonteCarlo simulation.
-# Notice that the default confidence interval is the 68th percentile which is
-# equivalent to one standard-deviation if the distribution is sufficiently close
-# to normal.
-def bootstrap(x, confidence=.95, n_samples=100):
-    # Make "nSamples" new datasets by re-sampling x with replacement
-    # the size of the samples should be the same as x itself
-    means = []
-    for k in range(n_samples):
-        sample = np.random.choice(x, size=len(x), replace=True)
-        means.append(np.mean(sample))
-    means.sort()
-    left_tail = int(((1.0 - confidence)/2) * n_samples)
-    right_tail = (n_samples - 1) - left_tail
-    return means[left_tail], np.mean(x), means[right_tail]
-
-
 # A general MonteCarlo engine that runs a simulation many times and computes the average
 # and the error in the average (confidence interval for a certain level). 
 
@@ -36,7 +19,7 @@ class MonteCarlo:
         if hasattr(self, "results"):  # See if the results have been calculated
             self.results.sort()  # Sort them
             index = int(len(self.results) * risk)  # Count them and multiply by the risk factor
-            return (self.results[index])  # Return the value at that index
+            return self.results[index]  # Return the value at that index
         else:
             print("RunSimulation must be executed before the method 'var'")
             return 0.0

@@ -149,17 +149,20 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate, arima
             volatility = arma_garch_volatility(log_returns, rebuild_rate, arima, arch_garch)  # Calculate volatility
             n_steps = 0
 
-        # Method 1 to calculate random return
-        # random_return = np.random.normal(  # Generate random return
-        #     (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
-        #
-        # ts = np.append(ts, ts[-1] * random_return)  # Generate an estimated new price with the random return
+        if risk_free_rate is None:
 
-        # Method 2 to calculate random return
-        period_rate = (risk_free_rate - .5 * volatility[n_steps] ** 2) * 1 / trading_days
-        period_sigma = volatility[n_steps] * np.sqrt(1 / trading_days)
-        random_return = np.random.normal(period_rate, period_sigma)
-        ts = np.append(ts, np.exp(log_price[-1] + random_return))  # Generate an estimated price with random return
+            # Method 1 to calculate random return based on the log mean and the volatility
+            random_return = np.random.normal(  # Generate random return
+                (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
+
+            ts = np.append(ts, round(ts[-1] * random_return, 2))  # Generate a new price with the random return
+        else:
+
+            # Method 2 to calculate random return using the risk-free rate and accounting for drag
+            period_rate = (risk_free_rate - .5 * volatility[n_steps] ** 2) * 1 / trading_days
+            period_sigma = volatility[n_steps] * np.sqrt(1 / trading_days)
+            random_return = np.random.normal(period_rate, period_sigma)
+            ts = np.append(ts, round(np.exp(log_price[-1] + random_return), 2))  # Generate a price with a random return
 
         n_steps += 1
 
@@ -257,6 +260,9 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         self.model = model
         self.options_info = options_info
         self.risk_free_rate = risk_free_rate
+        self.ticker = yf.Ticker(ticker)
+        self.arch_garch = dict(vol='GARCH', p=1, q=1, rescale=True, dist='normal') if arch_garch is None else arch_garch
+        self.arima = dict(information_criterion='bic') if arima is None else arima
         self.simulated_series = []
         self.results = []
 
@@ -266,31 +272,19 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             print("dict(type='European', strike=54.96, interval=None)")
             raise TypeError
 
-        self.ticker = yf.Ticker(ticker)
-
         if isinstance(period, dict):
             if 'start' not in period or 'end' not in period:
                 print('Period should have start and end dates in %Y-%m-%d format')
                 raise TypeError
-            self.ts = self.ticker.history(start=period['start'], end=period['end'])
+            self.ts = self.ticker.history(**period)
         else:
             self.ts = self.ticker.history(period=period)
-
-        if arch_garch is None:
-            self.arma_garch = dict(vol='GARCH', p=1, q=1, rescale=True, dist='normal')
-        else:
-            self.arma_garch = arch_garch
-
-        if arima is None:
-            self.arima = dict(information_criterion='bic')
-        else:
-            self.arima = arima
 
     def SimulateOnce(self):
         """ Simulate one price movement for the given horizon period"""
 
         simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate,
-                                         self.risk_free_rate, self.arima, self.arma_garch)
+                                         self.risk_free_rate, self.arima, self.arch_garch)
         self.simulated_series.append(simulated_series)
 
         if self.model == 'Returns':
@@ -300,8 +294,8 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             result = SimulateOptions(simulated_series, self.options_info['type'], self.options_info['strike'],
                                      self.options_info['interval'])
 
-        # Return result discounted by the risk-free rate
-        return result * np.exp(-self.risk_free_rate * (1 / self.trading_days))
+        # Return result discounted by the risk-free rate, if no risk-free rate, then return result
+        return result * np.exp(-self.risk_free_rate * (1/self.trading_days)) if self.risk_free_rate is None else result
 
     def Simulation_Statistics(self):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
@@ -326,10 +320,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         plot_histogram(self.results, axs[0])
         plot_series(self.simulated_series, self.ts.index[-1], axs[1])
 
-        if 'name' not in self.ticker.info:
-            name = self.ticker.ticker
-        else:
-            name = self.ticker.info['name']
+        name = self.ticker.ticker if 'name' not in self.ticker.info else self.ticker['name']
 
         fig.suptitle('{} Monte Carlo\nRan {} Simulation(s) of {} day(s)'.format(
             name, self.sim_count, self.trading_days), fontsize=30, fontweight='bold')
