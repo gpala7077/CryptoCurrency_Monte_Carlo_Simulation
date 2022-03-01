@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import pmdarima as arima
+import pmdarima
 from arch import arch_model
 from MonteCarlo_0 import MonteCarlo
 import matplotlib.pyplot as plt
@@ -76,7 +76,7 @@ def plot_series(simulated_series, last_actual_date, ax):
     ax.yaxis.set_major_formatter(thousands)
 
 
-def arma_garch_volatility(series, horizon):
+def arma_garch_volatility(series, horizon, arima, arch_garch):
     """
         Builds an ARMA-GARCH model and returns the forecasted volatility
     Parameters
@@ -87,19 +87,28 @@ def arma_garch_volatility(series, horizon):
     :param horizon:
         An int describing the number of days to be forecasted
 
+    :param arima:
+        A dictionary containing the hyper-parameters for ARIMA model. For parameter information:
+        https://alkaline-ml.com/pmdarima/modules/generated/pmdarima.arima.auto_arima.html
+
+    :param arch_garch
+        A dictionary containing the hyper-parameters for the ARCH/GARCH process:
+        https://arch.readthedocs.io/en/latest/univariate/introduction.html
+
     :return:
         Returns the forecast volatility
     """
-    arima_model_fitted = arima.auto_arima(series, information_criterion='bic')  # Fit an ARIMA model
+
+    arima_model_fitted = pmdarima.auto_arima(series, **arima)  # Fit an ARIMA model
     arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
-    model = arch_model(arima_residuals, vol='GARCH', p=1, q=1, rescale=True)  # Build Garch(1,1) on ARIMA residuals
+    model = arch_model(arima_residuals, **arch_garch)  # Build Garch on ARMA residuals
     fitted_model = model.fit(disp="off")  # Fit the model
     forecast = fitted_model.forecast(horizon=horizon, reindex=False)  # Forecast n-step ahead
 
     return np.sqrt(forecast.residual_variance.values[0])  # Return volatility forecast
 
 
-def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate):
+def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate, arima, arch_garch):
     """
         Generates a simulated series using an ARMA-GARCH process.
     Parameters
@@ -119,6 +128,12 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate):
     :param risk_free_rate:
         A float describing the current risk-free rate
 
+    :param arima:
+        A dictionary containing the hyper-parameters for an ARIMA model
+
+    :param arch_garch
+        A dictionary containing the hyper-parameters for an ARCH/GARCH model
+
     :return:
         Returns a numpy array containing the simulated series
     """
@@ -131,7 +146,7 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate):
         log_price = np.log(ts)
 
         if n_steps == len(volatility):
-            volatility = arma_garch_volatility(log_returns, rebuild_rate)  # Calculate volatility
+            volatility = arma_garch_volatility(log_returns, rebuild_rate, arima, arch_garch)  # Calculate volatility
             n_steps = 0
 
         # Method 1 to calculate random return
@@ -224,10 +239,17 @@ class TimeSeries_MonteCarlo(MonteCarlo):
     options_info: dict
         Option information. i.e.
         dict(type='Asian', strike='geometric', interval=4) or dict(type='European', strike=54.96, interval=None)
+
+    arima: dict
+        A dictionary containing the hyper-parameters for an ARIMA model
+
+    arch_garch: dict
+        A dictionary containing the hyper-parameters for an ARCH/GARCH model
+
     """
 
     def __init__(self, ticker, period='max', model='Returns', horizon=365, trading_days=365, rebuild_rate=1,
-                 risk_free_rate=.03, options_info=None):
+                 risk_free_rate=.03, options_info=None, arima=None, arch_garch=None):
 
         self.trading_days = trading_days
         self.horizon = horizon
@@ -254,11 +276,21 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         else:
             self.ts = self.ticker.history(period=period)
 
+        if arch_garch is None:
+            self.arma_garch = dict(vol='GARCH', p=1, q=1, rescale=True, dist='normal')
+        else:
+            self.arma_garch = arch_garch
+
+        if arima is None:
+            self.arima = dict(information_criterion='bic')
+        else:
+            self.arima = arima
+
     def SimulateOnce(self):
         """ Simulate one price movement for the given horizon period"""
 
         simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate,
-                                         self.risk_free_rate)
+                                         self.risk_free_rate, self.arima, self.arma_garch)
         self.simulated_series.append(simulated_series)
 
         if self.model == 'Returns':
