@@ -184,7 +184,7 @@ def generate_random_return(mean_return, trading_days, volatility, risk_free_rate
     return random_return
 
 
-def SimulateGarch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch_garch):
+def simulate_garch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch_garch):
     """
         Generates a simulated series using an ARMA-GARCH process.
     Parameters
@@ -235,7 +235,7 @@ def SimulateGarch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch_
     return simulated_series  # Return simulated series
 
 
-def SimulateOptions(simulated_series, options_type, strike_price, num_interval=None):
+def simulate_options(simulated_series, options_type, strike_price, num_interval=None):
     """
         Returns the payoff of an option
     Parameters
@@ -275,8 +275,30 @@ def SimulateOptions(simulated_series, options_type, strike_price, num_interval=N
     # Return the payoff
     return max(simulated_series[-1] - strike_price, 0)
 
+def simulate_putoption(simulated_series, options_type, strike_price, num_interval=None):
 
-class TimeSeries_MonteCarlo(MonteCarlo):
+    if options_type == 'Asian':
+        if num_interval is None:
+            print('Asian options requires an interval period.')
+            raise TypeError
+
+        days = len(simulated_series)  # Number of days simulated
+        days_interval = int(days / num_interval)  # Number of days in each interval to average end price
+        price_lst = simulated_series[::days_interval]  # List of price intervals
+
+    # Get average price based on method chosen
+    if strike_price == 'arithmetic':
+        strike_price = np.mean(price_lst)
+
+    elif strike_price == 'geometric':
+        strike_price = stats.gmean(price_lst)
+
+    # Return the payoff
+    return max(strike_price - simulated_series[-1], 0)
+
+
+
+class timeSeries_monteCarlo(MonteCarlo):
     """
         A Monte Carlo class that simulates the price movement of a stock using an ARMA-GARCH process.
 
@@ -350,10 +372,10 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         self.fitted_model = arma_garch_model(
             np.diff(np.log(self.ts['Close'])), self.arima, self.arch_garch)
 
-    def SimulateOnce(self):
+    def simulateonce(self):
         """ Simulate one price movement for the given horizon period"""
 
-        simulated_series = SimulateGarch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
+        simulated_series = simulate_garch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
                                          self.risk_free_rate, self.arch_garch)
 
         self.simulated_series.append(simulated_series)
@@ -362,14 +384,33 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             result = self.ts['Close'][-1] - simulated_series[-1]
 
         elif self.model == 'Options':
-            result = SimulateOptions(simulated_series, self.options_info['type'], self.options_info['strike'],
+            result = simulate_options(simulated_series, self.options_info['type'], self.options_info['strike'],
                                      self.options_info['interval'])
 
         # Return result discounted by the risk-free rate, if no risk-free rate, then return result
         return result * np.exp(
             -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
+    
+    def simulateonce_Put(self):
+        
+        simulated_series = simulate_garch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
+                                         self.risk_free_rate, self.arch_garch)
 
-    def Simulation_Statistics(self):
+        self.simulated_series.append(simulated_series)
+
+        if self.model == 'Returns':
+            result = self.ts['Close'][-1] - simulated_series[-1]
+
+        elif self.model == 'Options':
+            result = simulate_putoption(simulated_series, self.options_info['type'], self.options_info['strike'],
+                                     self.options_info['interval'])
+
+        # Return result discounted by the risk-free rate, if no risk-free rate, then return result
+        return result * np.exp(
+            -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
+    
+
+    def simulation_statistics(self):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
 
         self.results = np.array(self.results)
