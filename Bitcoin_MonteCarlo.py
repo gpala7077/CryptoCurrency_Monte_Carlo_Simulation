@@ -372,8 +372,9 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         years = int(vtime.days / 365)
         months = int((vtime.days % 365) / 30)
         days = int((vtime.days % 365) % 30)
-        simulated_model = arma_garch_model(self.simulated_series[np.random.randint(0, len(self.simulated_series))],
-                                           self.arima, self.arch_garch)
+        simulated_model = arma_garch_model(
+            np.diff(np.log(self.simulated_series[np.random.randint(0, len(self.simulated_series))])), self.arima,
+            self.arch_garch)
 
         print(self.elapsed_time)
         print('-' * len(self.elapsed_time))
