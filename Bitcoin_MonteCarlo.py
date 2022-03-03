@@ -321,7 +321,7 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         self.options_info = options_info
         self.risk_free_rate = risk_free_rate
         self.ticker = yf.Ticker(ticker)
-        self.arch_garch = dict(vol='GARCH', p=1, q=1, rescale=False,
+        self.arch_garch = dict(vol='GARCH', p=1, q=1, o=0, rescale=False,
                                dist='normal') if arch_garch is None else arch_garch
         self.arima = dict(information_criterion='bic') if arima is None else arima
         self.simulated_series = []
@@ -342,6 +342,9 @@ class TimeSeries_MonteCarlo(MonteCarlo):
             self.ts = self.ticker.history(period=period)
 
         # Build ARMA-GARCH model on initialization
+        if 'o' not in self.arch_garch:
+            self.arch_garch.update({'o': 0})
+
         self.fitted_model = arma_garch_model(
             np.diff(np.log(self.ts['Close'])), self.arima, self.arch_garch)
 
