@@ -76,16 +76,22 @@ def plot_series(simulated_series, last_actual_date, ax):
     ax.yaxis.set_major_formatter(thousands)
 
 
-def arma_garch_volatility(series, horizon, arima, arch_garch):
+def plot_residuals_volatility(model, ax):
+    ax[0].plot(model.resid / model.conditional_volatility)
+    ax[1].plot(model.conditional_volatility)
+
+    ax[0].set_title('Standardized Residuals', size=25)
+    ax[1].set_title('Conditional Volatility', size=25)
+
+
+def arma_garch_model(series, arima, arch_garch, show_warning=False):
     """
-        Builds an ARMA-GARCH model and returns the forecasted volatility
+        Builds an ARMA-GARCH model and returns the model parameters
+
     Parameters
     ----------
     :param series:
         A numpy array containing the log return of a series
-
-    :param horizon:
-        An int describing the number of days to be forecasted
 
     :param arima:
         A dictionary containing the hyper-parameters for ARIMA model. For parameter information:
@@ -95,6 +101,9 @@ def arma_garch_volatility(series, horizon, arima, arch_garch):
         A dictionary containing the hyper-parameters for the ARCH/GARCH process:
         https://arch.readthedocs.io/en/latest/univariate/introduction.html
 
+    :param show_warning:
+        A bool representing whether to show convergence warnings or not
+
     :return:
         Returns the forecast volatility
     """
@@ -102,19 +111,89 @@ def arma_garch_volatility(series, horizon, arima, arch_garch):
     arima_model_fitted = pmdarima.auto_arima(series, **arima)  # Fit an ARIMA model
     arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
     model = arch_model(arima_residuals, **arch_garch)  # Build Garch on ARMA residuals
-    fitted_model = model.fit(disp="off", show_warning=False)  # Fit the model
-    forecast = fitted_model.forecast(horizon=horizon, reindex=False)  # Forecast n-step ahead
+    fitted_model = model.fit(disp="off", show_warning=show_warning)  # Fit the GARCH model
 
-    return np.sqrt(forecast.residual_variance.values[0])  # Return volatility forecast
+    return fitted_model
 
 
-def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate, arima, arch_garch):
+def forecast_sigma(model_parameters, returns, sigmas):
+    """
+        Forecasts the volatility given the models parameters, previous returns and volatilities
+    :param model_parameters:
+        A dictionary containing the model's parameters omega, alphas, and betas
+
+    :param returns:
+        A numpy array containing the previous returns
+
+    :param sigmas:
+        A numpy array containing the previous volatilities
+
+    :return:
+        Returns the new volatility
+    """
+    omega = model_parameters['omega']
+    alphas = np.array(model_parameters[[alpha for alpha in model_parameters.keys() if 'alpha' in alpha]])
+    betas = np.array(model_parameters[[beta for beta in model_parameters.keys() if 'beta' in beta]])
+    gammas = np.array(model_parameters[[gamma for gamma in model_parameters.keys() if 'gamma' in gamma]])
+
+    if len(alphas) > 0 and len(betas) > 0 and len(gammas) > 0:
+        return np.sqrt(omega + np.sum(alphas * (returns[-len(alphas):] ** 2)) +
+                       np.sum(gammas * (returns[-len(gammas):] ** 2) * (returns[-len(gammas):] < 0)) +
+                       np.sum(betas * (sigmas ** 2)))
+
+    elif len(alphas) > 0 and len(betas) > 0:
+        return np.sqrt(omega + np.sum(alphas * (returns ** 2)) + np.sum(betas * (sigmas ** 2)))
+
+    elif len(alphas) > 0:
+        return np.sqrt(omega + np.sum(alphas * (returns ** 2)))
+
+    elif len(betas) > 0:
+        return np.sqrt(omega + np.sum(betas * (sigmas ** 2)))
+
+
+def generate_random_return(mean_return, trading_days, volatility, risk_free_rate):
+    """
+        Generate a random return either using the mean log return and volatility or the risk-free rate and volatility
+
+    :param mean_return:
+        A float describing the mean of the log-returns
+
+    :param trading_days:
+        An int describing the number of available trading days. i.e. Stocks = 253, Crypto=365
+
+    :param volatility:
+        A float describing the volatility for the given financial instrument
+
+    :param risk_free_rate:
+        A float describing the current risk-free rate
+
+    :return:
+        A float describing a random return
+    """
+
+    if risk_free_rate is None:
+        # Method 1 to calculate random daily return based on the mean log-return and the volatility
+        random_return = np.random.normal(  # Generate random return
+            (1 + mean_return) ** (1 / trading_days), volatility / np.sqrt(trading_days), 1)
+    else:
+        # Method 2 to calculate random daily return using the risk-free rate and accounting for drag
+        period_rate = (risk_free_rate - .5 * volatility ** 2) * (1 / trading_days)
+        period_sigma = volatility * np.sqrt(1 / trading_days)
+        random_return = np.random.normal(period_rate, period_sigma)
+
+    return random_return
+
+
+def SimulateGarch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch_garch):
     """
         Generates a simulated series using an ARMA-GARCH process.
     Parameters
     ----------
     :param ts:
-        A numpy array containing the observed price values of a stock
+        The current time series
+
+    :param fitted_model:
+        The fitted ARMA-GARCH model
 
     :param horizon:
         An int describing the number of days to be forecasted
@@ -122,49 +201,34 @@ def SimulateGarch(ts, horizon, trading_days, rebuild_rate, risk_free_rate, arima
     :param trading_days:
         An int describing the total number of available trading days in a year
 
-    :param rebuild_rate:
-        An int describing the rate at which the ARMA-GARCH model is rebuilt
-
     :param risk_free_rate:
         A float describing the current risk-free rate
 
-    :param arima:
-        A dictionary containing the hyper-parameters for an ARIMA model
-
-    :param arch_garch
-        A dictionary containing the hyper-parameters for an ARCH/GARCH model
+    :param arch_garch:
+        The hyper-parameters of the GARCH model
 
     :return:
         Returns a numpy array containing the simulated series
     """
+
     actual = ts
-    n_steps = 0
-    volatility = []
+    log_returns = np.diff(np.log(ts))
+    sigmas = np.array([log_returns.std()]*arch_garch['q'])  # Calculate the current volatility
+    random_return = np.array([log_returns[-max(arch_garch['p'], arch_garch['o']):]])  # Initialize an empty return array
+
     for i in range(horizon):
-        log_returns = np.diff(np.log(ts))  # Calculate log returns of the series
-        mean_return = log_returns.mean()  # Calculate the mean log return
-        log_price = np.log(ts)
+        random_return = np.append(  # Generate a new random return
+            random_return, generate_random_return(0, trading_days, sigmas[-1], risk_free_rate))
 
-        if n_steps == len(volatility):
-            volatility = arma_garch_volatility(log_returns, rebuild_rate, arima, arch_garch)  # Calculate volatility
-            n_steps = 0
+        sigmas = np.append(  # Generate a new volatility
+            sigmas, forecast_sigma(fitted_model.params, random_return[-max(arch_garch['p'], arch_garch['o']):],
+                                   sigmas[-arch_garch['q']:]))
 
-        if risk_free_rate is None:
+        # Generate a new price with the random return
+        new_price = round(ts[-1] * random_return[-1], 2) if risk_free_rate is None else round(
+            np.exp(np.log(ts[-1]) + random_return[-1]), 2)
 
-            # Method 1 to calculate random return based on the log mean and the volatility
-            random_return = np.random.normal(  # Generate random return
-                (1 + mean_return) ** (1 / trading_days), volatility[n_steps] / np.sqrt(trading_days), 1)
-
-            ts = np.append(ts, round(ts[-1] * random_return, 2))  # Generate a new price with the random return
-        else:
-
-            # Method 2 to calculate random return using the risk-free rate and accounting for drag
-            period_rate = (risk_free_rate - .5 * volatility[n_steps] ** 2) * 1 / trading_days
-            period_sigma = volatility[n_steps] * np.sqrt(1 / trading_days)
-            random_return = np.random.normal(period_rate, period_sigma)
-            ts = np.append(ts, round(np.exp(log_price[-1] + random_return), 2))  # Generate a price with a random return
-
-        n_steps += 1
+        ts = np.append(ts, new_price)  # Append new price to the series
 
     simulated_series = ts[len(actual) - 1:]  # Store the simulated year array
 
@@ -233,9 +297,6 @@ class TimeSeries_MonteCarlo(MonteCarlo):
     trading_days: int
         Number of available trading days. stocks = 253, cryptocurrencies = 365
 
-    rebuild_rate: int
-        Rate to rebuild ARMA-GARCH model
-
     risk_free_rate: float
         The current risk-free rate
 
@@ -251,17 +312,17 @@ class TimeSeries_MonteCarlo(MonteCarlo):
 
     """
 
-    def __init__(self, ticker, period='max', model='Returns', horizon=365, trading_days=365, rebuild_rate=1,
+    def __init__(self, ticker, period='max', model='Returns', horizon=365, trading_days=365,
                  risk_free_rate=.03, options_info=None, arima=None, arch_garch=None):
 
         self.trading_days = trading_days
         self.horizon = horizon
-        self.rebuild_rate = rebuild_rate
         self.model = model
         self.options_info = options_info
         self.risk_free_rate = risk_free_rate
         self.ticker = yf.Ticker(ticker)
-        self.arch_garch = dict(vol='GARCH', p=1, q=1, rescale=True, dist='normal') if arch_garch is None else arch_garch
+        self.arch_garch = dict(vol='GARCH', p=1, q=1, rescale=False,
+                               dist='normal') if arch_garch is None else arch_garch
         self.arima = dict(information_criterion='bic') if arima is None else arima
         self.simulated_series = []
         self.results = []
@@ -280,11 +341,16 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         else:
             self.ts = self.ticker.history(period=period)
 
+        # Build ARMA-GARCH model on initialization
+        self.fitted_model = arma_garch_model(
+            np.diff(np.log(self.ts['Close'])), self.arima, self.arch_garch)
+
     def SimulateOnce(self):
         """ Simulate one price movement for the given horizon period"""
 
-        simulated_series = SimulateGarch(self.ts['Close'], self.horizon, self.trading_days, self.rebuild_rate,
-                                         self.risk_free_rate, self.arima, self.arch_garch)
+        simulated_series = SimulateGarch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
+                                         self.risk_free_rate, self.arch_garch)
+
         self.simulated_series.append(simulated_series)
 
         if self.model == 'Returns':
@@ -295,7 +361,8 @@ class TimeSeries_MonteCarlo(MonteCarlo):
                                      self.options_info['interval'])
 
         # Return result discounted by the risk-free rate, if no risk-free rate, then return result
-        return result * np.exp(-self.risk_free_rate * (1/self.trading_days)) if self.risk_free_rate is None else result
+        return result * np.exp(
+            -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
 
     def Simulation_Statistics(self):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
@@ -305,6 +372,8 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         years = int(vtime.days / 365)
         months = int((vtime.days % 365) / 30)
         days = int((vtime.days % 365) % 30)
+        simulated_model = arma_garch_model(self.simulated_series[np.random.randint(0, len(self.simulated_series))],
+                                           self.arima, self.arch_garch)
 
         print(self.elapsed_time)
         print('-' * len(self.elapsed_time))
@@ -316,14 +385,26 @@ class TimeSeries_MonteCarlo(MonteCarlo):
         print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var()))
         print('-' * len(self.elapsed_time))
 
-        fig, axs = plt.subplots(1, 2, figsize=(13 * 1.10, 7 * 1.10))
-        plot_histogram(self.results, axs[0])
-        plot_series(self.simulated_series, self.ts.index[-1], axs[1])
+        fig = plt.figure(constrained_layout=False, figsize=(18, 15))
+        subplots = fig.subfigures(2, 2)
 
-        name = self.ticker.ticker if 'name' not in self.ticker.info else self.ticker['name']
+        ax0 = subplots[0, 0].subplots(1, 1)
+        ax1 = subplots[0, 1].subplots(1, 1)
+        ax2 = subplots[1, 0].subplots(2, 1)
+        ax3 = subplots[1, 1].subplots(2, 1)
+
+        plot_histogram(self.results, ax0)
+        plot_series(self.simulated_series, self.ts.index[-1], ax1)
+        plot_residuals_volatility(self.fitted_model, ax2)
+        plot_residuals_volatility(simulated_model, ax3)
+        subplots[1, 0].suptitle('Observed', y=.87, fontsize=30, fontweight='bold')
+        subplots[1, 1].suptitle('Simulated', y=.87, fontsize=30, fontweight='bold')
+
+        name = self.ticker.ticker if 'name' not in self.ticker.info else self.ticker.info['name']
 
         fig.suptitle('{} Monte Carlo\nRan {} Simulation(s) of {} day(s)'.format(
             name, self.sim_count, self.trading_days), fontsize=30, fontweight='bold')
 
-        fig.tight_layout()
+        fig.subplots_adjust(hspace=.001)
+        fig.tight_layout(pad=10)
         plt.show()
