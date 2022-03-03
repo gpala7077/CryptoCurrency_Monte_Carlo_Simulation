@@ -275,7 +275,7 @@ def simulate_options(simulated_series, options_type, strike_price, num_interval=
     # Return the payoff
     return max(simulated_series[-1] - strike_price, 0)
 
-def simulate_putoption(simulated_series, options_type, strike_price, num_interval=None):
+def simulate_put_option(simulated_series, options_type, strike_price, num_interval=None):
 
     if options_type == 'Asian':
         if num_interval is None:
@@ -402,7 +402,7 @@ class timeSeries_monteCarlo(MonteCarlo):
             result = self.ts['Close'][-1] - simulated_series[-1]
 
         elif self.model == 'Options':
-            result = simulate_putoption(simulated_series, self.options_info['type'], self.options_info['strike'],
+            result = simulate_put_option(simulated_series, self.options_info['type'], self.options_info['strike'],
                                      self.options_info['interval'])
 
         # Return result discounted by the risk-free rate, if no risk-free rate, then return result
