@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 import pmdarima
@@ -329,7 +331,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         self.results = []
 
         if model == 'Options' and \
-                (not {'type', 'strike', 'call', 'interval'} == self.options_info.keys() or options_info is None):
+                (options_info is None or not {'type', 'strike', 'call', 'interval'} == self.options_info.keys()):
             print('Modeling options requires a dictionary')
             print("dict(type='Asian', strike='geometric', call=True, interval=4)")
             print("dict(type='European', strike=54.96, call=False, interval=None)")
@@ -357,13 +359,17 @@ class Timeseries_MonteCarlo(MonteCarlo):
             raise TypeError
 
         elif isinstance(period, dict):
-            self.ts = self.ticker.history(**period)
+            try:
+                self.ts = self.ticker.history(**period)
+            except ValueError:
+                print('Period should have start and end dates in %Y-%m-%d format')
+                raise ValueError
 
         elif isinstance(period, str):
             self.ts = self.ticker.history(period=period)
 
         # Build ARMA-GARCH model on initialization
-        if {'vol', 'p', 'q', 'o', 'mean', 'rescale', 'dist'} <= self.arch_garch.keys():
+        if not {'vol', 'p', 'q', 'o', 'mean', 'rescale', 'dist'} <= self.arch_garch.keys():
             print('GARCH parameters must at minimum include the following parameters')
             print('dict(vol="GARCH", p=1, q=1, o=0, mean="Zero", rescale=True, dist="normal")')
             raise TypeError
