@@ -397,7 +397,14 @@ class Timeseries_MonteCarlo(MonteCarlo):
             -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
 
     def simulation_statistics(self, risk=.05):
-        """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
+        """
+            Generates the relevant plots and statistics for the Monte Carlo simulation results
+
+        :param risk:
+            A float with the range between 0 and 1, indicating the value at risk level
+        :return:
+            None
+        """
 
         self.results = np.array(self.results)
         vtime = self.ts.index[-1] - self.ts.index[0]
