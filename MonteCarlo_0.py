@@ -36,7 +36,7 @@ class MonteCarlo:
         for k in range(sim_count):
             x = self.simulate_once()  # Run the simulation
             self.results.append(x)  # Add the result to the array
-            if sim_count > 100 and sim_count % 100 == 0:
+            if sim_count > 100 and k % 100 == 0:
                 print('Completed Simulation # {}'.format(k + 1))
             elif sim_count <= 100:
                 print('Completed Simulation # {}'.format(k + 1))
