@@ -396,7 +396,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         return result * np.exp(
             -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
 
-    def simulation_statistics(self):
+    def simulation_statistics(self, risk=.05):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""
 
         self.results = np.array(self.results)
@@ -415,7 +415,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         print('Average Profit/Loss: ${:,.2f}'.format(np.mean(self.results)))
         print('Profit/Loss Ranges from ${:,.2f} - ${:,.2f}'.format(np.min(self.results), np.max(self.results)))
         print('Probability of Earning a Return = {:.2f}%'.format(((self.results > 0).sum() / len(self.results)) * 100))
-        print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var()))
+        print('The VaR at 95% Confidence is: ${:,.2f}'.format(self.var(risk)))
         print('-' * len(self.elapsed_time))
 
         fig = plt.figure(constrained_layout=False, figsize=(18, 15))
