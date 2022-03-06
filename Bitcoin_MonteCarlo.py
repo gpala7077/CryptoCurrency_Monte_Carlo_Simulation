@@ -8,6 +8,7 @@ import matplotlib.dates as mdates
 import scipy.stats as stats
 import yfinance as yf
 
+valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
 
 def thousands(x, pos):
     """
@@ -213,7 +214,7 @@ def simulate_garch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch
 
     actual = ts
     log_returns = np.diff(np.log(ts))
-    sigmas = np.array([log_returns.std()]*arch_garch['q'])  # Calculate the current volatility
+    sigmas = np.array([log_returns.std()] * arch_garch['q'])  # Calculate the current volatility
     random_return = np.array([log_returns[-max(arch_garch['p'], arch_garch['o']):]])  # Initialize an empty return array
 
     for i in range(horizon):
@@ -235,7 +236,7 @@ def simulate_garch(ts, fitted_model, horizon, trading_days, risk_free_rate, arch
     return simulated_series  # Return simulated series
 
 
-def simulate_options(simulated_series, options_type, strike_price, num_interval=None):
+def simulate_options(simulated_series, options_type, strike_price, call, num_interval=None):
     """
         Returns the payoff of an option
     Parameters
@@ -249,6 +250,9 @@ def simulate_options(simulated_series, options_type, strike_price, num_interval=
     :param strike_price:
         A string or float input indicating the strike price, i.e. geometric, arithmetic, 54.65
 
+    :param call:
+        A boolean variable indicating if it is a call or put option. Call=True (call, Call=False
+
     :param num_interval:
         An int that indicates the strike price interval. (Only used for Asian options)
 
@@ -257,10 +261,6 @@ def simulate_options(simulated_series, options_type, strike_price, num_interval=
     """
 
     if options_type == 'Asian':
-        if num_interval is None:
-            print('Asian options requires an interval period.')
-            raise TypeError
-
         days = len(simulated_series)  # Number of days simulated
         days_interval = int(days / num_interval)  # Number of days in each interval to average end price
         price_lst = simulated_series[::days_interval]  # List of price intervals
@@ -273,32 +273,10 @@ def simulate_options(simulated_series, options_type, strike_price, num_interval=
         strike_price = stats.gmean(price_lst)
 
     # Return the payoff
-    return max(simulated_series[-1] - strike_price, 0)
-
-def simulate_put_option(simulated_series, options_type, strike_price, num_interval=None):
-
-    if options_type == 'Asian':
-        if num_interval is None:
-            print('Asian options requires an interval period.')
-            raise TypeError
-
-        days = len(simulated_series)  # Number of days simulated
-        days_interval = int(days / num_interval)  # Number of days in each interval to average end price
-        price_lst = simulated_series[::days_interval]  # List of price intervals
-
-    # Get average price based on method chosen
-    if strike_price == 'arithmetic':
-        strike_price = np.mean(price_lst)
-
-    elif strike_price == 'geometric':
-        strike_price = stats.gmean(price_lst)
-
-    # Return the payoff
-    return max(strike_price - simulated_series[-1], 0)
+    return max(simulated_series[-1] - strike_price, 0) if call else max(strike_price - simulated_series[-1], 0)
 
 
-
-class timeSeries_monteCarlo(MonteCarlo):
+class Timeseries_MonteCarlo(MonteCarlo):
     """
         A Monte Carlo class that simulates the price movement of a stock using an ARMA-GARCH process.
 
@@ -350,33 +328,53 @@ class timeSeries_monteCarlo(MonteCarlo):
         self.simulated_series = []
         self.results = []
 
-        if model == 'Options' and options_info is None:
+        if model == 'Options' and not {'type', 'strike', 'call', 'interval'} == self.options_info.keys():
             print('Modeling options requires a dictionary')
-            print("dict(type='Asian', strike='geometric', interval=4)")
-            print("dict(type='European', strike=54.96, interval=None)")
+            print("dict(type='Asian', strike='geometric', call=True, interval=4)")
+            print("dict(type='European', strike=54.96, call=False, interval=None)")
             raise TypeError
 
-        if isinstance(period, dict):
-            if 'start' not in period or 'end' not in period:
-                print('Period should have start and end dates in %Y-%m-%d format')
-                raise TypeError
+        elif model == 'Options' and options_info['type'] == 'Asian' and \
+                (not options_info['interval'] > 0 or not isinstance(options_info['strike'], str)):
+            print('Asian options requires an interval period and an arithmetic or geometric mean option.')
+            print("dict(type='Asian', strike='geometric', call=True, interval=4)")
+            print("dict(type='Asian', strike='arithmetic', call=True, interval=4)")
+            raise TypeError
+
+        elif model == 'European' and \
+                (not isinstance(float, options_info['strike']) or not isinstance(int, options_info['strike'])):
+            print('European must have a valid strike price')
+            raise TypeError
+
+        if isinstance(period, dict) and not {'start', 'end'} == period.keys():
+            print('Period should have start and end dates in %Y-%m-%d format')
+            raise TypeError
+
+        elif isinstance(period, str) and period not in valid_periods:
+            print('Period should be a valid time period:')
+            print(valid_periods)
+            raise TypeError
+
+        elif isinstance(period, dict):
             self.ts = self.ticker.history(**period)
-        else:
+
+        elif isinstance(period, str):
             self.ts = self.ticker.history(period=period)
 
         # Build ARMA-GARCH model on initialization
-        if 'p' not in self.arch_garch or 'q' not in self.arch_garch or 'o' not in self.arch_garch:
-            print('GARCH parameters must include p, q, and o')
+        if {'vol', 'p', 'q', 'o', 'mean', 'rescale', 'dist'} <= self.arch_garch.keys():
+            print('GARCH parameters must at minimum include the following parameters')
+            print('dict(vol="GARCH", p=1, q=1, o=0, mean="Zero", rescale=True, dist="normal")')
             raise TypeError
 
         self.fitted_model = arma_garch_model(
             np.diff(np.log(self.ts['Close'])), self.arima, self.arch_garch)
 
-    def simulateonce(self):
+    def simulate_once(self):
         """ Simulate one price movement for the given horizon period"""
 
         simulated_series = simulate_garch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
-                                         self.risk_free_rate, self.arch_garch)
+                                          self.risk_free_rate, self.arch_garch)
 
         self.simulated_series.append(simulated_series)
 
@@ -385,30 +383,11 @@ class timeSeries_monteCarlo(MonteCarlo):
 
         elif self.model == 'Options':
             result = simulate_options(simulated_series, self.options_info['type'], self.options_info['strike'],
-                                     self.options_info['interval'])
+                                      self.options_info['call'], self.options_info['interval'])
 
         # Return result discounted by the risk-free rate, if no risk-free rate, then return result
         return result * np.exp(
             -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
-    
-    def simulateonce_Put(self):
-        
-        simulated_series = simulate_garch(self.ts['Close'], self.fitted_model, self.horizon, self.trading_days,
-                                         self.risk_free_rate, self.arch_garch)
-
-        self.simulated_series.append(simulated_series)
-
-        if self.model == 'Returns':
-            result = self.ts['Close'][-1] - simulated_series[-1]
-
-        elif self.model == 'Options':
-            result = simulate_put_option(simulated_series, self.options_info['type'], self.options_info['strike'],
-                                     self.options_info['interval'])
-
-        # Return result discounted by the risk-free rate, if no risk-free rate, then return result
-        return result * np.exp(
-            -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
-    
 
     def simulation_statistics(self):
         """Generates the relevant plots and statistics for the Monte Carlo simulation results"""

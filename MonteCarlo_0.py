@@ -12,7 +12,7 @@ class MonteCarlo:
     in the base class) that must be extended/overriden to build the simualtion.
     """
 
-    def SimulateOnce(self):
+    def simulate_once(self):
         raise NotImplementedError
 
     def var(self, risk=.05):
@@ -27,22 +27,22 @@ class MonteCarlo:
     # For the simplest Monte Carlo simulator, we will simply run the
     # simulation for a specific number of iterrations and then
     # average the results
-    def RunSimulation(self, sim_count=100000):
+    def run_simulation(self, sim_count=100000):
         start = time.time()
         self.results = []  # Array to hold the results
         self.sim_count = sim_count
         # Now, we set up the simulation loop
         print('Beginning Simulations...')
         for k in range(sim_count):
-            x = self.SimulateOnce()  # Run the simulation
+            x = self.simulate_once()  # Run the simulation
             self.results.append(x)  # Add the result to the array
             print('Completed Simulation # {}'.format(k + 1))
 
-        self.CalculateTime(start, time.time())
+        self.calculate_time(start, time.time())
         # Return the mean result (we will get more information on this shortly)
         return np.mean(self.results)
 
-    def CalculateTime(self, start, end):
+    def calculate_time(self, start, end):
         time_elapsed = str(datetime.timedelta(seconds=end - start))
         if 'days' in time_elapsed:
             days, hms = time_elapsed.split(',')
