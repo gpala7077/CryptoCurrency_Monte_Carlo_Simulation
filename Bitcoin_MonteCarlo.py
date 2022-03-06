@@ -328,7 +328,8 @@ class Timeseries_MonteCarlo(MonteCarlo):
         self.simulated_series = []
         self.results = []
 
-        if model == 'Options' and not {'type', 'strike', 'call', 'interval'} == self.options_info.keys():
+        if model == 'Options' and \
+                (not {'type', 'strike', 'call', 'interval'} == self.options_info.keys() or options_info is None):
             print('Modeling options requires a dictionary')
             print("dict(type='Asian', strike='geometric', call=True, interval=4)")
             print("dict(type='European', strike=54.96, call=False, interval=None)")
