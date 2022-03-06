@@ -362,7 +362,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
             try:
                 self.ts = self.ticker.history(**period)
             except ValueError:
-                print('Period should have start and end dates in %Y-%m-%d format')
+                print('Period should be in %Y-%m-%d format')
                 raise ValueError
 
         elif isinstance(period, str):
