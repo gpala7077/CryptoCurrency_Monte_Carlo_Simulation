@@ -12,6 +12,7 @@ import yfinance as yf
 
 valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
 
+
 def thousands(x, pos):
     """
         Formats a string in comma format. Used in ax.xaxis.set_major_formatter or ax.yaxis.set_major_formatter
