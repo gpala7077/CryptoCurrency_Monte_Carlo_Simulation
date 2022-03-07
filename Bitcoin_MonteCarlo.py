@@ -12,8 +12,6 @@ import yfinance as yf
 import seaborn as sns
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
-valid_periods = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']
-
 
 def thousands(x, pos):
     """
