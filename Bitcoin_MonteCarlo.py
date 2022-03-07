@@ -290,8 +290,8 @@ class Financial_Timeseries(yf.Ticker):
 
         series = ['Open', 'High', 'Low', 'Close'] if series is None else series
         values = self.timeseries[series]
-        returns = self.transform('returns', series)
-        log_returns = self.transform('log returns', series)
+        returns = self.transform(series, 'returns')
+        log_returns = self.transform(series, 'log returns')
 
         sns.lineplot(data=values, ax=axs[0])
         sns.lineplot(data=returns, ax=axs[1])
@@ -317,7 +317,7 @@ class Financial_Timeseries(yf.Ticker):
         fig, axs = plt.subplots(4, 1, figsize=(10, 10), squeeze=True)
         fig.suptitle('{} AutoCorrelation Plots of the {}'.format(series, 'Values' if transform is None else transform))
 
-        series = self.timeseries[series] if transform is None else self.transform(transform, series)
+        series = self.timeseries[series] if transform is None else self.transform(series, transform)
 
         plot_acf(series, ax=axs[0], zero=False)
         plot_pacf(series, ax=axs[1], zero=False)
@@ -338,7 +338,7 @@ class Financial_Timeseries(yf.Ticker):
 
         fig.tight_layout()
 
-    def transform(self, transform, series=None):
+    def transform(self, series=None, transform='log returns'):
 
         series = ['Open', 'High', 'Low', 'Close'] if series is None else series
 
@@ -460,7 +460,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         self.options = Option(**options_info) if options_info is not None else options_info
         self.risk_free_rate = risk_free_rate
         self.data = Financial_Timeseries(ticker, period)
-        self.arma_garch = Arma_Garch_modeler(self.data.transform('log returns', 'Close'), arima, arch_garch)
+        self.arma_garch = Arma_Garch_modeler(self.data.transform('Close', 'log returns'), arima, arch_garch)
         self.simulated_series = []
         self.results = []
 
