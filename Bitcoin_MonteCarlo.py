@@ -16,6 +16,7 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 def thousands(x, pos):
     """
         Formats a string in comma format. Used in ax.xaxis.set_major_formatter or ax.yaxis.set_major_formatter
+
     :param x:
         String containing a float
 
@@ -25,12 +26,14 @@ def thousands(x, pos):
     :return:
         None
     """
+
     return '${:,}'.format(int(float(x)))
 
 
 def plot_histogram(series, ax):
     """
         Plots a histogram
+
     Parameters
     ----------
     :param series:
@@ -42,6 +45,7 @@ def plot_histogram(series, ax):
     :return:
         None
     """
+
     ax.hist(series, 50, facecolor='blue', alpha=0.5, density=True)
     ax.set_title('Profit/Loss Distribution', size=25)
     ax.set_xlabel('Profit/Loss', size=25)
@@ -53,6 +57,7 @@ def plot_histogram(series, ax):
 def plot_series(simulated_series, last_actual_date, ax):
     """
         Plots all the simulated time series
+
     Parameters
     ----------
     :param simulated_series:
@@ -67,6 +72,7 @@ def plot_series(simulated_series, last_actual_date, ax):
     :return:
         None
     """
+
     for series in simulated_series:
         ax.plot(pd.date_range(last_actual_date, periods=len(series)).values, series)
 
@@ -145,6 +151,7 @@ class Arma_Garch_modeler:
         :param show_warning:
             A bool representing whether to show convergence warnings or not
 """
+
         self.arch_garch = dict(vol='GARCH', p=1, q=1, o=0, mean="Zero",
                                rescale=True, dist='normal') if arch_garch is None else arch_garch
 
@@ -171,6 +178,7 @@ class Arma_Garch_modeler:
         :return:
             Fitted ARMA-GARCH model
         """
+
         arima_model_fitted = pmdarima.auto_arima(series, **self.arima)  # Fit an ARIMA model
         arima_residuals = arima_model_fitted.arima_res_.resid  # Retrieve the residuals
         model = arch_model(arima_residuals, **self.arch_garch)  # Build Garch on ARMA residuals
@@ -190,6 +198,7 @@ class Arma_Garch_modeler:
         :return:
             Returns the new volatility
         """
+
         model_parameters = self.fitted_model.params
         omega = model_parameters['omega']
         alphas = np.array(model_parameters[[alpha for alpha in model_parameters.keys() if 'alpha' in alpha]])
@@ -213,6 +222,7 @@ class Arma_Garch_modeler:
     def simulate_garch(self, ts, horizon, trading_days, risk_free_rate):
         """
             Generates a simulated series using an ARMA-GARCH process.
+
         Parameters
         ----------
         :param ts:
@@ -387,6 +397,7 @@ class Option:
     def simulate_options(self, simulated_series):
         """
             Returns the payoff of an option
+
         Parameters
         ----------
         :param simulated_series:
@@ -471,7 +482,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         self.simulated_series.append(simulated_series)
 
         if self.model == 'Returns':
-            result = self.data.timeseries[-1] - simulated_series[-1]
+            result = self.data.timeseries['Close'][-1] - simulated_series[-1]
 
         elif self.model == 'Options':
             result = self.options.simulate_options(simulated_series)
@@ -480,19 +491,24 @@ class Timeseries_MonteCarlo(MonteCarlo):
         return result * np.exp(
             -self.risk_free_rate * (1 / self.trading_days)) if self.risk_free_rate is None else result
 
-    def simulation_statistics(self, risk=.05):
+    def simulation_statistics(self, risk=.05, plot_simulated=None):
         """
             Generates the relevant plots and statistics for the Monte Carlo simulation results
 
         :param risk:
             A float with the range between 0 and 1, indicating the value at risk level
+
+        :param plot_simulated:
+            An int that indicates which simulated series to use to build an ARMA-GARCH model to compare with the
+            observed series
+
         :return:
             None
         """
 
+        plot_simulated = np.random.randint(0, len(self.simulated_series)) if plot_simulated is None else plot_simulated
         self.results = np.array(self.results)
-        simulated_model = self.arma_garch.arma_garch_model(
-            np.diff(np.log(self.simulated_series[np.random.randint(0, len(self.simulated_series))])))
+        simulated_model = self.arma_garch.arma_garch_model(np.diff(np.log(self.simulated_series[plot_simulated])))
 
         print(self.elapsed_time)
         print('-' * len(self.elapsed_time))
