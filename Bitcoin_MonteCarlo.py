@@ -130,7 +130,7 @@ def generate_random_return(mean_return, trading_days, volatility, risk_free_rate
     return random_return
 
 
-class Arma_Garch_modeler:
+class Arma_Garch_Modeler:
     def __init__(self, ts, arima=None, arch_garch=None, show_warnings=False):
         """
              A Class that fits an ARMA-GARCH model
@@ -469,7 +469,7 @@ class Timeseries_MonteCarlo(MonteCarlo):
         self.options = Option(**options_info) if options_info is not None else options_info
         self.risk_free_rate = risk_free_rate
         self.data = Financial_Timeseries(ticker, period)
-        self.arma_garch = Arma_Garch_modeler(self.data.transform('Close', 'log returns'), arima, arch_garch)
+        self.arma_garch = Arma_Garch_Modeler(self.data.transform('Close', 'log returns'), arima, arch_garch)
         self.simulated_series = []
         self.results = []
 
