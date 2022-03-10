@@ -278,7 +278,7 @@ class Financial_Timeseries(yf.Ticker):
 
         elif isinstance(period, str) and period not in self.valid_periods:
             print('Period should be a valid time period:')
-            print(valid_periods)
+            print(self.valid_periods)
             raise TypeError
 
         elif isinstance(period, dict):
